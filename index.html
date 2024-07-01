@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedienSpeicher</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<style>
+    :root {
+        --light-blue-rgb: 123, 176, 190;
+        --lighter-blue-rgb: 174, 215, 215;
+    }
+
+    body {
+        background-color: black;
+        cursor: default;
+        overflow-x: hidden;
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+    }
+
+    #app {
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        border-top: none; /* Remove black border at the top */
+    }
+
+    #star-container {
+        background: linear-gradient(to bottom, rgb(var(--light-blue-rgb)), rgb(var(--lighter-blue-rgb)));
+        height: 100%;
+        overflow: hidden;
+        position: absolute;
+        width: 100%;
+    }
+
+    #star-pattern {
+        background-image: url("https://teamzom.de/meoutline.svg");
+        background-size: 10%;
+        position: absolute;
+        left: 50%;
+        top: 0;
+        transform: translate(-50%, 0);
+        z-index: 1;
+        height: 100%;
+        width: 100%;
+        min-width: 1200px;
+        opacity: 0.10;
+        animation: pan 180s linear infinite;
+        will-change: background-position;
+    }
+
+    #star-gradient-overlay {
+        background: radial-gradient(circle, transparent 75%, rgb(var(--lighter-blue-rgb)));
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.9;
+        z-index: 2;
+    }
+
+    .channel-title {
+        font-size: 24px;
+        margin: 20px 0 10px;
+        z-index: 3;
+        color: white;
+    }
+
+    .youtube-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        padding: 5px;
+        margin-bottom: 20px;
+        background-color: transparent;
+        z-index: 3;
+        justify-content: center; /* Center items horizontally */
+    }
+
+    .video {
+        width: calc(25% - 20px); /* Four videos per row on desktop */
+        flex-grow: 1; /* Allow videos to grow in width */
+        border-radius: 10px;
+        overflow: hidden;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        background: #f9f9f9;
+        margin-bottom: 20px; /* Add gap between videos */
+        position: relative; /* Ensure relative positioning for inner elements */
+    }
+
+    .video:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .yt_video {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        position: absolute; /* Position video absolutely within .video container */
+        top: 0;
+        left: 0;
+    }
+
+    .video-thumbnail {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .video-title {
+        padding: 10px;
+        margin: 0;
+        font-size: 14px;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        background-color: rgba(var(--light-blue-rgb), 0.9); /* Semi-transparent background */
+        border-radius: 0 0 10px 10px;
+        color: black; /* Adjust text color for visibility */
+        display: block; /* Ensure the title occupies full width */
+        position: relative; /* Ensure z-index works properly */
+        z-index: 1; /* Ensure title appears above video */
+    }
+
+    .blur-effect .yt_video,
+    .blur-effect .video-thumbnail {
+        filter: blur(8px); /* Blur effect for both video and thumbnail */
+    }
+
+    @keyframes pan {
+        0% {
+            background-position: 0% 0%;
+        }
+        100% {
+            background-position: 100% 0%;
+        }
+    }
+
+    @media (max-width: 1200px) {
+        .video {
+            width: calc(33.33% - 20px); /* Three videos per row on smaller desktops */
+        }
+    }
+
+    @media (max-width: 992px) {
+        .video {
+            width: calc(50% - 20px); /* Two videos per row on tablets */
+        }
+    }
+
+    @media (max-width: 768px) {
+        .video {
+            width: 100%; /* One video per row on mobile */
+        }
+    }
+</style>
+</head>
+<body>
+<div id="app">
+    <div id="star-container">
+        <div id="star-pattern"></div>
+        <div id="star-gradient-overlay"></div>
+    </div>
+
+    <!-- Zuletzt hochgeladenes Video von allen Kanälen -->
+    <div id="medien-container" class="youtube-container"></div>
+
+    <h2 class="channel-title">TeamZom Videos</h2>
+    <div id="teamzom-container" class="youtube-container"></div>
+
+    <h2 class="channel-title">ZevKev Videos</h2>
+    <div id="zevkev-container" class="youtube-container"></div>
+
+    <h2 class="channel-title">JamonHD Videos</h2>
+    <div id="jamonhd-container" class="youtube-container"></div>
+</div>
+
+<script>
+    function fetchVideos(channelID, containerID, videoCountDesktop = 4, videoCountMobile = 1) {
+        $.getJSON('https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.youtube.com%2Ffeeds%2Fvideos.xml%3Fchannel_id%3D' + channelID, function (data) {
+            var videoCount = $(window).width() > 768 ? videoCountDesktop : videoCountMobile;
+            for (var i = 0; i < videoCount && i < data.items.length; i++) {
+                var link = data.items[i].link;
+                var id = link.substr(link.indexOf("=") + 1);
+                var title = data.items[i].title;
+                var thumbnail = data.items[i].thumbnail;
+                var videoHTML = '<div class="video">' +
+                                    '<img class="video-thumbnail" src="' + thumbnail + '" alt="Video Thumbnail">' +
+                                    '<iframe class="yt_video" src="https://youtube.com/embed/' + id + '?controls=0&showinfo=0&rel=0&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen></iframe>' +
+                                    '<p class="video-title">' + title + '</p>' +
+                                '</div>';
+                $('#' + containerID).append(videoHTML);
+            }
+        });
+    }
+
+    // Funktion, um das zuletzt hochgeladene Video von allen Kanälen zu holen
+    function fetchLastVideoFromAllChannels() {
+        var channels = [
+            { id: "UCyNTfaFXDeymzGl97KUXyMg", container: "teamzom-container" }, // TeamZom
+            { id: "UCpr-pIwKcVDAm-5ID_mdj7w", container: "zevkev-container" }, // ZevKev
+            { id: "UC8i_ANEhbQ54VAI5cuJH-kw", container: "jamonhd-container" }  // JamonHD
+        ];
+
+        var latestVideo = { date: null, video: null };
+
+        // Durchlaufe jeden Kanal, um das neueste Video zu finden
+        channels.forEach(function (channel) {
+            $.getJSON('https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.youtube.com%2Ffeeds%2Fvideos.xml%3Fchannel_id%3D' + channel.id, function (data) {
+                if (data.items.length > 0) {
+                    var publishedDate = new Date(data.items[0].pubDate).getTime();
+                    if (latestVideo.date === null || publishedDate > latestVideo.date) {
+                        latestVideo.date = publishedDate;
+                        latestVideo.video = data.items[0];
+                    }
+                }
+                // Nachdem alle Kanäle durchlaufen wurden, füge das neueste Video hinzu
+                if (channel.id === channels[channels.length - 1].id) {
+                    var id = latestVideo.video.link.substr(latestVideo.video.link.indexOf("=") + 1);
+                    var thumbnail = latestVideo.video.thumbnail;
+                    var videoHTML = '<div class="video">' + // Füge die Klasse blur-effect hinzu
+                                        '<img class="video-thumbnail" src="' + thumbnail + '" alt="Video Thumbnail">' +
+                                        '<iframe class="yt_video" src="https://youtube.com/embed/' + id + '?controls=0&showinfo=0&rel=0&autoplay=0&modestbranding=1" frameborder="0" allowfullscreen></iframe>' +
+                                    '</div>';
+                    $('#medien-container').append(videoHTML);
+                }
+            });
+        });
+    }
+
+    // Lade Videos für jeden Kanal
+    fetchVideos("UCyNTfaFXDeymzGl97KUXyMg", "teamzom-container");
+    fetchVideos("UCpr-pIwKcVDAm-5ID_mdj7w", "zevkev-container");
+    fetchVideos("UC8i_ANEhbQ54VAI5cuJH-kw", "jamonhd-container");
+</script>
+
+</body>
+</html>
